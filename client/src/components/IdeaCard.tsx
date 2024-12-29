@@ -75,7 +75,7 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
       title: idea.title,
       description: idea.description || "",
       platform: idea.platform,
-      tags: idea.tags.map(tag => tag.name),
+      tags: idea.tags.map((tag) => tag.name),
     },
   });
 
@@ -115,11 +115,17 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
 
   const updateMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
+      console.log("Updating idea with values:", values);
+
       // First update the idea details
       const res = await fetch(`/api/ideas/${idea.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          title: values.title,
+          description: values.description,
+          platform: values.platform,
+        }),
       });
       if (!res.ok) throw new Error("Failed to update idea");
 
@@ -130,6 +136,10 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
         body: JSON.stringify({ tags: values.tags }),
       });
       if (!tagsRes.ok) throw new Error("Failed to update tags");
+
+      const updatedIdea = await tagsRes.json();
+      console.log("Updated idea response:", updatedIdea);
+      return updatedIdea;
     },
     onSuccess: () => {
       setIsEditDialogOpen(false);
@@ -137,6 +147,14 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
       toast({
         title: "Success",
         description: "Idea updated successfully!",
+      });
+    },
+    onError: (error) => {
+      console.error("Failed to update idea:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update idea. Please try again.",
+        variant: "destructive",
       });
     },
   });
@@ -158,21 +176,21 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
   });
 
   const handleAddTag = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && event.currentTarget.value) {
+    if (event.key === "Enter" && event.currentTarget.value) {
       event.preventDefault();
       const newTag = event.currentTarget.value.trim().toLowerCase();
-      const currentTags = form.getValues('tags');
+      const currentTags = form.getValues("tags");
 
       if (newTag && !currentTags.includes(newTag)) {
-        form.setValue('tags', [...currentTags, newTag]);
-        event.currentTarget.value = '';
+        form.setValue("tags", [...currentTags, newTag]);
+        event.currentTarget.value = "";
       }
     }
   };
 
   const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('tags');
-    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove));
+    const currentTags = form.getValues("tags");
+    form.setValue("tags", currentTags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleShare = () => {
@@ -234,8 +252,8 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
               onClick={handleShare}
               title="Share to platform"
@@ -255,7 +273,9 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
                 </DialogHeader>
                 <Form {...form}>
                   <form
-                    onSubmit={form.handleSubmit((values) => updateMutation.mutate(values))}
+                    onSubmit={form.handleSubmit((values) =>
+                      updateMutation.mutate(values)
+                    )}
                     className="space-y-4"
                   >
                     <FormField
@@ -330,7 +350,7 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
                                 onKeyPress={handleAddTag}
                               />
                               <div className="flex flex-wrap gap-2">
-                                {form.watch('tags').map((tag) => (
+                                {form.watch("tags").map((tag) => (
                                   <Badge
                                     key={tag}
                                     variant="secondary"

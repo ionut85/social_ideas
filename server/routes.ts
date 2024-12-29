@@ -27,6 +27,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(ideasWithTags);
     } catch (error) {
+      console.error("Error fetching ideas:", error);
       res.status(500).json({ message: "Failed to fetch ideas" });
     }
   });
@@ -35,6 +36,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/ideas", async (req, res) => {
     try {
       const { title, description, platform, tags: tagNames = [] } = req.body;
+      console.log("Creating new idea with tags:", { title, tagNames });
 
       // Get max order and add 1
       const maxOrder = await db
@@ -53,17 +55,25 @@ export function registerRoutes(app: Express): Server {
         order,
       }).returning();
 
+      console.log("Created idea:", newIdea);
+
       // Create or get existing tags and link them to the idea
       for (const tagName of tagNames) {
-        // Try to find existing tag or create new one
-        let [tag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
+        console.log("Processing tag:", tagName);
 
-        if (!tag) {
-          [tag] = await db.insert(tags)
+        // Try to find existing tag or create new one
+        let [existingTag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
+        let tag = existingTag;
+
+        if (!existingTag) {
+          console.log("Creating new tag:", tagName);
+          const [newTag] = await db.insert(tags)
             .values({ name: tagName.toLowerCase() })
             .returning();
+          tag = newTag;
         }
 
+        console.log("Linking tag to idea:", { tagId: tag.id, ideaId: newIdea.id });
         // Link tag to idea
         await db.insert(ideaTags).values({
           ideaId: newIdea.id,
@@ -83,10 +93,13 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      res.json({
+      const response = {
         ...ideaWithTags,
-        tags: ideaWithTags?.ideaTags.map(it => it.tag)
-      });
+        tags: ideaWithTags?.ideaTags.map(it => it.tag) || []
+      };
+
+      console.log("Returning new idea with tags:", response);
+      res.json(response);
     } catch (error) {
       console.error("Error creating idea:", error);
       res.status(500).json({ message: "Failed to create idea" });
@@ -108,22 +121,31 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const { tags: tagNames } = req.body;
+      console.log("Updating tags for idea:", { id, tagNames });
 
       // Remove existing tags
       await db.delete(ideaTags)
         .where(eq(ideaTags.ideaId, parseInt(id)));
 
+      console.log("Removed existing tags");
+
       // Add new tags
       for (const tagName of tagNames) {
-        // Try to find existing tag or create new one
-        let [tag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
+        console.log("Processing tag:", tagName);
 
-        if (!tag) {
-          [tag] = await db.insert(tags)
+        // Try to find existing tag or create new one
+        let [existingTag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
+        let tag = existingTag;
+
+        if (!existingTag) {
+          console.log("Creating new tag:", tagName);
+          const [newTag] = await db.insert(tags)
             .values({ name: tagName.toLowerCase() })
             .returning();
+          tag = newTag;
         }
 
+        console.log("Linking tag to idea:", { tagId: tag.id, ideaId: id });
         // Link tag to idea
         await db.insert(ideaTags).values({
           ideaId: parseInt(id),
@@ -143,10 +165,13 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      res.json({
+      const response = {
         ...updatedIdea,
-        tags: updatedIdea?.ideaTags.map(it => it.tag)
-      });
+        tags: updatedIdea?.ideaTags.map(it => it.tag) || []
+      };
+
+      console.log("Returning updated idea with tags:", response);
+      res.json(response);
     } catch (error) {
       console.error("Error updating idea tags:", error);
       res.status(500).json({ message: "Failed to update idea tags" });
@@ -158,6 +183,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const { title, description, platform } = req.body;
+      console.log("Updating idea:", { id, title, description, platform });
 
       const [updatedIdea] = await db.update(ideas)
         .set({ title, description, platform })
@@ -176,11 +202,15 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      res.json({
+      const response = {
         ...ideaWithTags,
-        tags: ideaWithTags?.ideaTags.map(it => it.tag)
-      });
+        tags: ideaWithTags?.ideaTags.map(it => it.tag) || []
+      };
+
+      console.log("Returning updated idea:", response);
+      res.json(response);
     } catch (error) {
+      console.error("Error updating idea:", error);
       res.status(500).json({ message: "Failed to update idea" });
     }
   });
@@ -192,6 +222,7 @@ export function registerRoutes(app: Express): Server {
       await db.delete(ideas).where(eq(ideas.id, parseInt(id)));
       res.json({ message: "Idea deleted successfully" });
     } catch (error) {
+      console.error("Error deleting idea:", error);
       res.status(500).json({ message: "Failed to delete idea" });
     }
   });
@@ -209,6 +240,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ message: "Orders updated successfully" });
     } catch (error) {
+      console.error("Error updating orders:", error);
       res.status(500).json({ message: "Failed to update orders" });
     }
   });

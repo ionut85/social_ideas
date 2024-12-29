@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) {
+  const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -55,36 +57,62 @@ export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) 
 
   const createMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
+      console.log("Creating new idea with values:", values);
       const res = await fetch("/api/ideas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          title: values.title,
+          description: values.description,
+          platform: values.platform,
+          tags: values.tags || [],
+        }),
       });
-      if (!res.ok) throw new Error("Failed to create idea");
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to create idea: ${errorText}`);
+      }
+
+      const newIdea = await res.json();
+      console.log("Created idea response:", newIdea);
+      return newIdea;
     },
     onSuccess: () => {
       form.reset();
       onOpenChange(false);
       onSuccess();
+      toast({
+        title: "Success",
+        description: "New idea created successfully!",
+      });
+    },
+    onError: (error) => {
+      console.error("Failed to create idea:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create idea. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
   const handleAddTag = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && event.currentTarget.value) {
+    if (event.key === "Enter" && event.currentTarget.value) {
       event.preventDefault();
       const newTag = event.currentTarget.value.trim().toLowerCase();
-      const currentTags = form.getValues('tags');
+      const currentTags = form.getValues("tags");
 
       if (newTag && !currentTags.includes(newTag)) {
-        form.setValue('tags', [...currentTags, newTag]);
-        event.currentTarget.value = '';
+        form.setValue("tags", [...currentTags, newTag]);
+        event.currentTarget.value = "";
       }
     }
   };
 
   const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('tags');
-    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove));
+    const currentTags = form.getValues("tags");
+    form.setValue("tags", currentTags.filter((tag) => tag !== tagToRemove));
   };
 
   return (
@@ -171,7 +199,7 @@ export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) 
                         onKeyPress={handleAddTag}
                       />
                       <div className="flex flex-wrap gap-2">
-                        {form.watch('tags').map((tag) => (
+                        {form.watch("tags").map((tag) => (
                           <Badge
                             key={tag}
                             variant="secondary"
