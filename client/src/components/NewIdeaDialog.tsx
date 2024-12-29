@@ -26,11 +26,14 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   platform: z.string().min(1, "Platform is required"),
+  tags: z.array(z.string()).default([]),
 });
 
 interface Props {
@@ -46,6 +49,7 @@ export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) 
       title: "",
       description: "",
       platform: "",
+      tags: [],
     },
   });
 
@@ -64,6 +68,24 @@ export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) 
       onSuccess();
     },
   });
+
+  const handleAddTag = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && event.currentTarget.value) {
+      event.preventDefault();
+      const newTag = event.currentTarget.value.trim().toLowerCase();
+      const currentTags = form.getValues('tags');
+
+      if (newTag && !currentTags.includes(newTag)) {
+        form.setValue('tags', [...currentTags, newTag]);
+        event.currentTarget.value = '';
+      }
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    const currentTags = form.getValues('tags');
+    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,6 +153,40 @@ export default function NewIdeaDialog({ open, onOpenChange, onSuccess }: Props) 
                       <SelectItem value="instagram">Instagram</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="tags"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Tags</FormLabel>
+                  <FormControl>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Type a tag and press Enter..."
+                        onKeyPress={handleAddTag}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {form.watch('tags').map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            {tag}
+                            <X
+                              className="h-3 w-3 cursor-pointer hover:text-destructive"
+                              onClick={() => removeTag(tag)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

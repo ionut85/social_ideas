@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRef } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -9,7 +10,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, GripVertical, Share2 } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Pencil, Trash2, GripVertical, Share2, X } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +47,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
+
+const formSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  platform: z.string().min(1, "Platform is required"),
+  tags: z.array(z.string()).default([]),
+});
 
 interface Props {
   idea: Idea;
@@ -38,6 +67,17 @@ interface Props {
 export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: idea.title,
+      description: idea.description || "",
+      platform: idea.platform,
+      tags: idea.tags.map(tag => tag.name),
+    },
+  });
 
   const [{ handlerId }, drop] = useDrop({
     accept: "idea",
@@ -73,6 +113,34 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
     }),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      // First update the idea details
+      const res = await fetch(`/api/ideas/${idea.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) throw new Error("Failed to update idea");
+
+      // Then update the tags
+      const tagsRes = await fetch(`/api/ideas/${idea.id}/tags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: values.tags }),
+      });
+      if (!tagsRes.ok) throw new Error("Failed to update tags");
+    },
+    onSuccess: () => {
+      setIsEditDialogOpen(false);
+      onUpdate();
+      toast({
+        title: "Success",
+        description: "Idea updated successfully!",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/ideas/${idea.id}`, {
@@ -88,6 +156,24 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
       });
     },
   });
+
+  const handleAddTag = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && event.currentTarget.value) {
+      event.preventDefault();
+      const newTag = event.currentTarget.value.trim().toLowerCase();
+      const currentTags = form.getValues('tags');
+
+      if (newTag && !currentTags.includes(newTag)) {
+        form.setValue('tags', [...currentTags, newTag]);
+        event.currentTarget.value = '';
+      }
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    const currentTags = form.getValues('tags');
+    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove));
+  };
 
   const handleShare = () => {
     const shareConfig = {
@@ -136,6 +222,15 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
                 <span>•</span>
                 <span>{format(new Date(idea.createdAt), "MMM d, yyyy")}</span>
               </div>
+              {idea.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {idea.tags.map((tag) => (
+                    <Badge key={tag.id} variant="secondary">
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
@@ -148,7 +243,7 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
               <Share2 className="h-4 w-4" />
             </Button>
 
-            <Dialog>
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon">
                   <Pencil className="h-4 w-4" />
@@ -158,7 +253,109 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
                 <DialogHeader>
                   <DialogTitle>Edit Idea</DialogTitle>
                 </DialogHeader>
-                {/* Add edit form here */}
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit((values) => updateMutation.mutate(values))}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Title</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter your idea..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description (Optional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Add more details..."
+                              className="resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="platform"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Platform</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a platform" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="twitter">Twitter</SelectItem>
+                              <SelectItem value="reddit">Reddit</SelectItem>
+                              <SelectItem value="linkedin">LinkedIn</SelectItem>
+                              <SelectItem value="instagram">Instagram</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="tags"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Tags</FormLabel>
+                          <FormControl>
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="Type a tag and press Enter..."
+                                onKeyPress={handleAddTag}
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                {form.watch('tags').map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className="flex items-center gap-1"
+                                  >
+                                    {tag}
+                                    <X
+                                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                      onClick={() => removeTag(tag)}
+                                    />
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button type="submit" className="w-full">
+                      Save Changes
+                    </Button>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
 
