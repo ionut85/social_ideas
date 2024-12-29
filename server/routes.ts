@@ -46,7 +46,7 @@ export function registerRoutes(app: Express): Server {
       const order = maxOrder.length > 0 ? maxOrder[0].order + 1 : 0;
 
       // Create the idea
-      const newIdea = await db.insert(ideas).values({
+      const [newIdea] = await db.insert(ideas).values({
         title,
         description,
         platform,
@@ -56,27 +56,24 @@ export function registerRoutes(app: Express): Server {
       // Create or get existing tags and link them to the idea
       for (const tagName of tagNames) {
         // Try to find existing tag or create new one
-        let tag = await db.query.tags.findFirst({
-          where: eq(tags.name, tagName.toLowerCase())
-        });
+        let [tag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
 
         if (!tag) {
-          const [newTag] = await db.insert(tags)
+          [tag] = await db.insert(tags)
             .values({ name: tagName.toLowerCase() })
             .returning();
-          tag = newTag;
         }
 
         // Link tag to idea
         await db.insert(ideaTags).values({
-          ideaId: newIdea[0].id,
+          ideaId: newIdea.id,
           tagId: tag.id
         });
       }
 
       // Fetch the created idea with its tags
       const ideaWithTags = await db.query.ideas.findFirst({
-        where: eq(ideas.id, newIdea[0].id),
+        where: eq(ideas.id, newIdea.id),
         with: {
           ideaTags: {
             with: {
@@ -91,6 +88,7 @@ export function registerRoutes(app: Express): Server {
         tags: ideaWithTags?.ideaTags.map(it => it.tag)
       });
     } catch (error) {
+      console.error("Error creating idea:", error);
       res.status(500).json({ message: "Failed to create idea" });
     }
   });
@@ -117,17 +115,16 @@ export function registerRoutes(app: Express): Server {
 
       // Add new tags
       for (const tagName of tagNames) {
-        let tag = await db.query.tags.findFirst({
-          where: eq(tags.name, tagName.toLowerCase())
-        });
+        // Try to find existing tag or create new one
+        let [tag] = await db.select().from(tags).where(eq(tags.name, tagName.toLowerCase()));
 
         if (!tag) {
-          const [newTag] = await db.insert(tags)
+          [tag] = await db.insert(tags)
             .values({ name: tagName.toLowerCase() })
             .returning();
-          tag = newTag;
         }
 
+        // Link tag to idea
         await db.insert(ideaTags).values({
           ideaId: parseInt(id),
           tagId: tag.id
@@ -151,6 +148,7 @@ export function registerRoutes(app: Express): Server {
         tags: updatedIdea?.ideaTags.map(it => it.tag)
       });
     } catch (error) {
+      console.error("Error updating idea tags:", error);
       res.status(500).json({ message: "Failed to update idea tags" });
     }
   });
@@ -159,14 +157,29 @@ export function registerRoutes(app: Express): Server {
   app.put("/api/ideas/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, description, platform, order } = req.body;
+      const { title, description, platform } = req.body;
 
-      const updatedIdea = await db.update(ideas)
-        .set({ title, description, platform, order })
+      const [updatedIdea] = await db.update(ideas)
+        .set({ title, description, platform })
         .where(eq(ideas.id, parseInt(id)))
         .returning();
 
-      res.json(updatedIdea[0]);
+      // Fetch the updated idea with its tags
+      const ideaWithTags = await db.query.ideas.findFirst({
+        where: eq(ideas.id, updatedIdea.id),
+        with: {
+          ideaTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      res.json({
+        ...ideaWithTags,
+        tags: ideaWithTags?.ideaTags.map(it => it.tag)
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to update idea" });
     }
