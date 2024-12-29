@@ -9,6 +9,7 @@ import IdeaCard from "@/components/IdeaCard";
 import NewIdeaDialog from "@/components/NewIdeaDialog";
 import PlatformFilter from "@/components/PlatformFilter";
 import type { Idea } from "@/lib/types";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,17 +72,23 @@ export default function Home() {
         />
 
         <DndProvider backend={HTML5Backend}>
-          <div className="space-y-4 mt-8">
-            {filteredIdeas.map((idea, index) => (
-              <IdeaCard
-                key={idea.id}
-                idea={idea}
-                index={index}
-                moveIdea={moveIdea}
-                onUpdate={() => refetch()}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-4 mt-8"
+            layout
+            transition={{ duration: 0.2 }}
+          >
+            <AnimatePresence>
+              {filteredIdeas.map((idea, index) => (
+                <IdeaCard
+                  key={idea.id}
+                  idea={idea}
+                  index={index}
+                  moveIdea={moveIdea}
+                  onUpdate={() => refetch()}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
         </DndProvider>
 
         <NewIdeaDialog

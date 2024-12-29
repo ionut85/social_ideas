@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, GripVertical } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   idea: Idea;
@@ -50,12 +51,20 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
       const hoverIndex = index;
       if (dragIndex === hoverIndex) return;
 
+      const hoverBoundingRect = ref.current?.getBoundingClientRect();
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+      const clientOffset = monitor.getClientOffset();
+      const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
+
+      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) return;
+      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) return;
+
       moveIdea(dragIndex, hoverIndex);
       item.index = hoverIndex;
     },
   });
 
-  const [{ isDragging }, drag] = useDrag({
+  const [{ isDragging }, drag, dragPreview] = useDrag({
     type: "idea",
     item: () => ({ id: idea.id, index }),
     collect: (monitor) => ({
@@ -79,66 +88,81 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
     },
   });
 
-  drag(drop(ref));
+  dragPreview(drop(ref));
 
   return (
-    <Card
-      ref={ref}
-      data-handler-id={handlerId}
-      className={`${isDragging ? "opacity-50" : ""} cursor-move`}
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2 }}
     >
-      <CardHeader className="flex flex-row justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold">{idea.title}</h3>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{idea.platform}</span>
-            <span>•</span>
-            <span>{format(new Date(idea.createdAt), "MMM d, yyyy")}</span>
+      <Card
+        ref={ref}
+        data-handler-id={handlerId}
+        className={`${
+          isDragging ? "opacity-50" : ""
+        } transition-all duration-200 hover:shadow-md`}
+      >
+        <CardHeader className="flex flex-row justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div ref={drag} className="cursor-move">
+              <GripVertical className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">{idea.title}</h3>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{idea.platform}</span>
+                <span>•</span>
+                <span>{format(new Date(idea.createdAt), "MMM d, yyyy")}</span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Edit Idea</DialogTitle>
-              </DialogHeader>
-              {/* Add edit form here */}
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Idea</DialogTitle>
+                </DialogHeader>
+                {/* Add edit form here */}
+              </DialogContent>
+            </Dialog>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteMutation.mutate()}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </CardHeader>
-      {idea.description && (
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{idea.description}</p>
-        </CardContent>
-      )}
-    </Card>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteMutation.mutate()}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </CardHeader>
+        {idea.description && (
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{idea.description}</p>
+          </CardContent>
+        )}
+      </Card>
+    </motion.div>
   );
 }
