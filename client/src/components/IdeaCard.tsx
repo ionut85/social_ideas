@@ -9,11 +9,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, GripVertical } from "lucide-react";
+import { Pencil, Trash2, GripVertical, Share2 } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Idea } from "@/lib/types";
+import { getShareUrl, openShareWindow } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 interface Props {
   idea: Idea;
@@ -88,6 +89,24 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
     },
   });
 
+  const handleShare = () => {
+    const shareConfig = {
+      text: idea.description ? `${idea.title}\n\n${idea.description}` : idea.title,
+      title: idea.title,
+    };
+
+    const shareUrl = getShareUrl(idea.platform, shareConfig);
+    if (shareUrl) {
+      openShareWindow(shareUrl);
+    } else {
+      toast({
+        title: "Cannot share directly",
+        description: "This platform doesn't support direct sharing via URL",
+        variant: "destructive",
+      });
+    }
+  };
+
   dragPreview(drop(ref));
 
   return (
@@ -120,6 +139,15 @@ export default function IdeaCard({ idea, index, moveIdea, onUpdate }: Props) {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={handleShare}
+              title="Share to platform"
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
+
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon">
